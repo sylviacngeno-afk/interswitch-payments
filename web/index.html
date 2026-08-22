@@ -1,6 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interswitch Merchant Portal v2</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Interswitch Merchant Portal v2</h1>
+    <div id="clock">00:00:00</div>
+  </header>
+
+  <main>
+    <section class="stats">
+      <h2>Platform Overview</h2>
+      <div class="stat-card">
+        <h3>Active Merchants</h3>
+        <span class="counter" data-target="15000">0</span>
+      </div>
+      <div class="stat-card">
+        <h3>Daily Transactions</h3>
+        <span class="counter" data-target="2500000">0</span>
+      </div>
+    </section>
+
+    <section class="status">
+      <h2>System Status Grid</h2>
+      <div id="statusGrid" class="status-grid"></div>
+    </section>
+
+    <section class="registration">
+      <h2>Merchant Registration</h2>
+      <form id="merchantForm" onsubmit="event.preventDefault(); submitForm();">
+        <input type="text" id="businessName" placeholder="Business Name" required>
+        <input type="text" id="rcNumber" placeholder="RC / Registration Number" required>
+        <input type="email" id="email" placeholder="Business Email" required>
+        <select id="businessType" required>
+          <option value="">Select Business Type</option>
+          <option value="retail">Retail</option>
+          <option value="fintech">Fintech</option>
+          <option value="e-commerce">E-Commerce</option>
+        </select>
+        <button type="submit">Submit Application</button>
+      </form>
+      <div id="formMessage" class="form-message"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
 <meta charset="UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
