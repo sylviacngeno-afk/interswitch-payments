@@ -1,0 +1,8 @@
+services:
+  api:
+    image: sylviacngeno/interswitch-api:v1
+    build: !reset null
+
+  portal:
+    image: sylviacngeno/interswitch-portal:v1
+    build: !reset null
