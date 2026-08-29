@@ -1,0 +1,11 @@
+services:
+  api:
+    environment:
+      - NODE_ENV=staging
+
+  portal:
+    ports:
+      - '3001:3000'
+    environment:
+      - NODE_ENV=staging
+      - API_URL=http://api:4000

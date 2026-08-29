@@ -1,6 +1,8 @@
-node_modules/
-.git/
-*.log
-.env
-.github/
-Jenkinsfile
+node_modules
+npm-debug.log
+.git
+Dockerfile
+.dockerignore
+*.md
+.github
+k8s

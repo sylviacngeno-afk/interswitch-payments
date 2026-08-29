@@ -25,7 +25,7 @@ app.get('/status', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'payment-api', timestamp: new Date().toISOString() });
+  res.status(200).json({ status: 'ok', service: 'payment-api' });
 });
 
 app.get('/', (req, res) => {
@@ -38,5 +38,4 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Payment API running on port ${PORT}`);
-  console.log(`Status endpoint: http://localhost:${PORT}/status`);
 });
