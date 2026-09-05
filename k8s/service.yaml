@@ -3,9 +3,13 @@ kind: Service
 metadata:
   name: portal
 spec:
-  type: ClusterIP
+  # NodePort so the host nginx can reach the portal at 127.0.0.1:30080.
+  # This cluster has no ingress controller installed, so nginx on the
+  # node is the front door (see deploy/nginx/interswitch.conf).
+  type: NodePort
   selector:
     app: portal
   ports:
   - port: 3000
     targetPort: 3000
+    nodePort: 30080
