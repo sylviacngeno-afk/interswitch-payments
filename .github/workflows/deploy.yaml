@@ -26,15 +26,6 @@ jobs:
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/interswitch-portal:latest
 
-    - name: Deploy to EC2 / K3s
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_SSH_KEY }}
-        script: |
-          mkdir -p /home/ubuntu/interswitch/k8s
-          
     - name: Copy Manifests to EC2
       uses: appleboy/scp-action@v0.1.7
       with:
@@ -44,12 +35,16 @@ jobs:
         source: "k8s/*"
         target: "/home/ubuntu/interswitch"
 
-    - name: Apply Kubernetes Manifests on EC2
+    - name: Deploy and Verify on EC2
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          sudo k3s kubectl apply -f /home/ubuntu/interswitch/k8s/
-          sudo k3s kubectl rollout restart deployment/portal
+          cd /home/ubuntu/interswitch
+          sudo k3s kubectl apply -f k8s/
+          sudo k3s kubectl set image deployment/portal portal=${{ secrets.DOCKERHUB_USERNAME }}/interswitch-portal:latest
+          sudo k3s kubectl rollout status deployment/portal --timeout=150s
+          sudo k3s kubectl rollout status deployment/payment-api --timeout=150s
+          sudo k3s kubectl get pods -o wide

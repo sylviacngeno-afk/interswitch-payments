@@ -43,6 +43,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Interswitch Portal running on port ${PORT}`);
-});
+const BOOT_DELAY_MS = Number(process.env.BOOT_DELAY_MS || 0);
+console.log(`Starting portal, boot delay ${BOOT_DELAY_MS}ms`);
+setTimeout(() => {
+  app.listen(PORT, () => console.log(`Portal listening on port ${PORT}`));
+}, BOOT_DELAY_MS);
