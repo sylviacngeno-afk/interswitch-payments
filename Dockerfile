@@ -2,7 +2,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 RUN npm prune --omit=dev
 
@@ -15,10 +15,7 @@ ENV NODE_ENV=production PORT=3000
 RUN addgroup -S portal && adduser -S -G portal portal
 
 # Copy built application artifacts
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/server.js ./server.js
-COPY --from=build /app/web ./web
+COPY --from=build --chown=portal:portal /app ./
 
 USER portal
 EXPOSE 3000
