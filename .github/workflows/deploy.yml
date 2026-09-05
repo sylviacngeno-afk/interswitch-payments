@@ -1,119 +1,48 @@
-name: Deploy to EC2
-
+name: Build and Deploy to k3s
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-concurrency:
-  group: deploy-ec2
-  cancel-in-progress: false
-
+push:
+branches: [ main ]
+workflow_dispatch: # lets you run it by hand from the Actions tab
+env:
+IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/interswitch-portal
 jobs:
-  deploy:
-    name: Deploy to EC2
-    runs-on: ubuntu-latest
+deploy:
+runs-on: ubuntu-latest
+steps:
+- name: Check out the code
+uses: actions/checkout@v4
+- name: Derive an image tag from the commit SHA
+run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+- name: Log in to Docker Hub
+uses: docker/login-action@v3
+with:
+username: ${{ secrets.DOCKERHUB_USERNAME }}
+password: ${{ secrets.DOCKERHUB_TOKEN }}
+- name: Build and push the portal image
+run: |
+docker build -t $IMAGE:$TAG -t $IMAGE:latest .
+docker push $IMAGE:$TAG
+docker push $IMAGE:latest
+- name: Copy the manifests to the cluster
+uses: appleboy/scp-action@v0.1.7
+with:
+host: ${{ secrets.EC2_HOST }}
+username: ubuntu
+key: ${{ secrets.EC2_SSH_KEY }}
+source: "k8s/*"
+target: "/home/ubuntu/interswitch"
+- name: Apply the manifests and roll out the new image
+uses: appleboy/ssh-action@v1.0.3
+with:
+host: ${{ secrets.EC2_HOST }}
 
-    env:
-      EC2_HOST: ${{ secrets.EC2_HOST }}
-      EC2_USER: ${{ secrets.EC2_USER }}
-      REMOTE_TMP: /tmp/interswitch_web
-      WEB_ROOT: /var/www/html
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Validate required secrets
-        run: |
-          set -euo pipefail
-          missing=0
-          for name in EC2_HOST EC2_USER; do
-            if [ -z "${!name:-}" ]; then
-              echo "::error::Required secret $name is not set"
-              missing=1
-            fi
-          done
-          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
-            echo "::error::Required secret EC2_SSH_KEY is not set"
-            missing=1
-          fi
-          [ "$missing" -eq 0 ] || exit 1
-
-      - name: Set up SSH key
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          chmod 644 ~/.ssh/known_hosts
-
-      - name: Verify SSH connectivity
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 \
-            "$EC2_USER@$EC2_HOST" 'echo "Connected as $(whoami) on $(hostname)"'
-
-      - name: Prepare staging directory on EC2
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" \
-            "rm -rf '$REMOTE_TMP' && mkdir -p '$REMOTE_TMP'"
-
-      - name: Copy web files to EC2
-        run: |
-          set -euo pipefail
-          echo 'Copying files to EC2...'
-          scp -i ~/.ssh/deploy_key -r web/. "$EC2_USER@$EC2_HOST:$REMOTE_TMP/"
-
-      - name: Install files to Nginx web root
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" bash -s <<EOF
-            set -euo pipefail
-            sudo mkdir -p '$WEB_ROOT'
-            sudo cp -r '$REMOTE_TMP'/. '$WEB_ROOT'/
-            sudo chown -R www-data:www-data '$WEB_ROOT'
-            sudo find '$WEB_ROOT' -type d -exec chmod 755 {} +
-            sudo find '$WEB_ROOT' -type f -exec chmod 644 {} +
-            sudo nginx -t
-            sudo systemctl reload nginx
-          EOF
-
-      - name: Verify Nginx is still running
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" \
-            'systemctl is-active --quiet nginx && echo "nginx: active" || (sudo systemctl status nginx --no-pager; exit 1)'
-
-      - name: Smoke test the site
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --max-time 15 -o /dev/null \
-            "http://$EC2_HOST/" && echo "HTTP 2xx/3xx from site root"
-
-      - name: Write deployment log entry
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" \
-            "echo '[\$(date -u +'%Y-%m-%dT%H:%M:%SZ')] Deployed ${{ github.sha }} by ${{ github.actor }}' | sudo tee -a /var/log/interswitch_deployments.log > /dev/null"
-
-      - name: Clean up staging directory
-        if: always()
-        run: |
-          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" \
-            "rm -rf '$REMOTE_TMP'" || true
-
-      - name: Remove SSH key from runner
-        if: always()
-        run: rm -f ~/.ssh/deploy_key
-
-      - name: Deployment complete
-        run: |
-          echo '================================================'
-          echo 'Deployment complete!'
-          echo "Commit:  ${{ github.sha }}"
-          echo "Live at: http://$EC2_HOST"
-          echo '================================================'
+username: ubuntu
+key: ${{ secrets.EC2_SSH_KEY }}
+script: |
+cd /home/ubuntu/interswitch
+kubectl apply -f k8s/
+kubectl set image deployment/portal \
+portal=${{ env.IMAGE }}:${{ env.TAG }}
+kubectl rollout status deployment/portal --timeout=150s
+kubectl rollout status deployment/payment-api --timeout=150s
+kubectl get pods -o wide
