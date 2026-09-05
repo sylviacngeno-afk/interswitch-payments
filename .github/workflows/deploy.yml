@@ -6,7 +6,8 @@ on:
   workflow_dispatch: # lets you run it by hand from the Actions tab
 
 env:
-  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/interswitch-portal
+  PORTAL_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/interswitch-portal
+  API_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/interswitch-api
 
 jobs:
   deploy:
@@ -27,9 +28,15 @@ jobs:
 
       - name: Build and push the portal image
         run: |
-          docker build -t $IMAGE:$TAG -t $IMAGE:latest .
-          docker push $IMAGE:$TAG
-          docker push $IMAGE:latest
+          docker build -t $PORTAL_IMAGE:$TAG -t $PORTAL_IMAGE:latest .
+          docker push $PORTAL_IMAGE:$TAG
+          docker push $PORTAL_IMAGE:latest
+
+      - name: Build and push the payment-api image
+        run: |
+          docker build -t $API_IMAGE:$TAG -t $API_IMAGE:latest ./payment-api
+          docker push $API_IMAGE:$TAG
+          docker push $API_IMAGE:latest
 
       - name: Copy the manifests to the cluster
         uses: appleboy/scp-action@v0.1.7
@@ -40,17 +47,37 @@ jobs:
           source: "k8s/*"
           target: "/home/ubuntu/interswitch"
 
-      - name: Apply the manifests and roll out the new image
+      - name: Apply the manifests and roll out the new images
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true          # a failed command now fails the job
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/interswitch
+
+            kubectl apply -f k8s/
+
+            kubectl set image deployment/portal \
+              portal=${{ env.PORTAL_IMAGE }}:${{ env.TAG }}
+            kubectl set image deployment/payment-api \
+              api=${{ env.API_IMAGE }}:${{ env.TAG }}
+
+            kubectl rollout status deployment/portal --timeout=150s
+            kubectl rollout status deployment/payment-api --timeout=150s
+
+            kubectl get pods -o wide
+
+      - name: Show why the rollout failed
+        if: failure()
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ubuntu/interswitch
-            kubectl apply -f k8s/
-            kubectl set image deployment/portal \
-              portal=${{ env.IMAGE }}:${{ env.TAG }}
-            kubectl rollout status deployment/portal --timeout=150s
-            kubectl rollout status deployment/payment-api --timeout=150s
             kubectl get pods -o wide
+            kubectl describe pods -l app=payment-api | sed -n '/Events/,$p'
+            kubectl describe pods -l app=portal | sed -n '/Events/,$p'
