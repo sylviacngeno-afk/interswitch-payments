@@ -1,0 +1,27 @@
+# INERT ON THE CURRENT CLUSTER.
+#
+# k3s here was installed with Traefik disabled, so there is no ingress
+# controller and nothing implements this object. Traffic reaches the
+# portal via nginx on the node -> NodePort 30080 (see k8s/service.yaml
+# and deploy/nginx/interswitch.conf).
+#
+# Kept so the stack is portable: on any cluster with an ingress
+# controller, this routes / to the portal with no other changes. The
+# portal proxies /api/* to the payment-api Service itself, so no
+# stripPrefix middleware is needed.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: interswitch
+spec:
+  ingressClassName: traefik
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: portal
+            port:
+              number: 3000

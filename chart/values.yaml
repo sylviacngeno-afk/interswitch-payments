@@ -1,0 +1,19 @@
+portal:
+  replicas: 2
+  image:
+    repository: YOUR_USERNAME/interswitch-portal
+    tag: latest
+  port: 3000
+  bootDelayMs: "8000"
+  logLevel: "info"
+paymentApi:
+  replicas: 2
+  image:
+    repository: YOUR_USERNAME/interswitch-api
+    tag: v1
+  port: 4000
+storage:
+  size: 1Gi
+ingress:
+  enabled: true
+  className: traefik
