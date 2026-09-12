@@ -1,7 +1,7 @@
 name: Build and Deploy to k3s
 
-on:
-  push:
+on:  
+  push:  
     branches: [main]
   workflow_dispatch: # lets you run it by hand from the Actions tab
 
@@ -13,19 +13,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    steps:
+    steps:    
       - name: Check out the code
         uses: actions/checkout@v4
 
       - name: Derive an image tag from the commit SHA
         run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
-
+          
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+    
       - name: Build and push the portal image
         run: |
           docker build -t $PORTAL_IMAGE:$TAG -t $PORTAL_IMAGE:latest .
@@ -38,15 +38,21 @@ jobs:
           docker push $API_IMAGE:$TAG
           docker push $API_IMAGE:latest
 
+      - name: Debug workspace files
+        run: |
+          pwd
+          ls -la
+          ls -la chart/
+
       - name: Set up Helm
         uses: azure/setup-helm@v3
         with:
           version: 'latest'
-
+          
       - name: Set up Kubeconfig
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
 
       - name: Deploy Helm Chart
